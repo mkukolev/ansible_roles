@@ -1,0 +1,27 @@
+- name: Установка правильного fixVersion
+  uri:
+    url: "{{ jira_url }}/rest/api/2/issue/{{ item }}/editmeta"
+    method: GET
+    headers:
+      Authorization: "Basic {{ jira_auth }}"
+      Content-Type: "application/json"
+    return_content: yes
+  register: issue_meta
+  loop: "{{ jira_issues }}"
+  when: jira_issues is defined
+
+- name: Обновление поля fixVersion
+  uri:
+    url: "{{ jira_url }}/rest/api/2/issue/{{ item }}/"
+    method: PUT
+    headers:
+      Authorization: "Basic {{ jira_auth }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      update:
+        fixVersions:
+          - set:
+              - name: "{{ fix_version }}"
+  loop: "{{ jira_issues }}"
+  when: jira_issues is defined
