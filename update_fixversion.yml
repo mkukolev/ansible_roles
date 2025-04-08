@@ -5,40 +5,42 @@
 
   vars:
     jira_url: "https://jira.astralinux.ru"
-    fix_version_name: ""
-    fix_version_id: ""
-    jira_project_key: "AA"
+    main_branches:
+      - devel
+      - master
+      - main
     next_release_version: "next-release"
 
   tasks:
-
     - name: Установить имя ветки из webhook или переменной
       set_fact:
-        branch_name: "{{ branch_name | default(webhook_payload.changes[0].ref.displayId, true) }}"
+        branch_name: >-
+          {% if branch_name is defined %}
+            {{ branch_name }}
+          {% elif webhook_payload is defined and webhook_payload.changes is defined %}
+            {{ webhook_payload.changes[0].ref.displayId }}
+          {% else %}
+            ""
+          {% endif %}
 
-    - name: Установить имя версии, если ветка релизная
+    - name: Определить имя релизной версии, если ветка релизная
       set_fact:
-        fix_version_name: "{{ branch_name | regex_replace('^release/', '') }}"
+        release_version: "{{ branch_name | regex_replace('^release/', '') }}"
       when: branch_name is match('^release/')
-
-    - name: Установить имя версии, если ветка основная (devel, main, master)
-      set_fact:
-        fix_version_name: "{{ next_release_version }}"
-      when: branch_name in ['devel', 'main', 'master']
 
     - name: Извлечь задачи Jira из названия ветки
       shell: echo "{{ branch_name }}" | grep -Eo '[A-Z]+-[0-9]+'
       register: matched_issues
       changed_when: false
+      failed_when: matched_issues.rc != 0 and matched_issues.stdout == ""
 
     - name: Получить список задач без дубликатов
       set_fact:
         jira_issues: "{{ matched_issues.stdout_lines | unique }}"
-      when: matched_issues.stdout_lines | length > 0
 
-    - name: Получить список всех версий проекта в Jira
+    - name: Получить ID релизной версии, если ветка релизная
       uri:
-        url: "https://jira.astralinux.ru/rest/api/2/project/{{ jira_project_key }}/versions"
+        url: "https://jira.astralinux.ru/rest/api/2/project/AA/versions"
         method: GET
         user: "{{ jira_username }}"
         password: "{{ jira_password }}"
@@ -46,12 +48,17 @@
         return_content: true
         status_code: 200
       register: versions_response
-      when: fix_version_name != ""
+      when: branch_name is match('^release/') or branch_name in main_branches
 
-    - name: Найти ID нужной версии
+    - name: Найти ID релизной версии по имени
       set_fact:
-        fix_version_id: "{{ (versions_response.json | selectattr('name', 'equalto', fix_version_name) | list).0.id }}"
-      when: fix_version_name != ""
+        fix_version_id: "{{ (versions_response.json | selectattr('name', 'equalto', release_version) | list).0.id }}"
+      when: branch_name is match('^release/')
+
+    - name: Найти ID next-release версии, если ветка основная
+      set_fact:
+        fix_version_id: "{{ (versions_response.json | selectattr('name', 'equalto', next_release_version) | list).0.id }}"
+      when: branch_name in main_branches
 
     - name: Обновить fixVersion у задач Jira
       uri:
@@ -71,4 +78,6 @@
       loop: "{{ jira_issues }}"
       loop_control:
         label: "{{ item }}"
-      when: fix_version_id != ""
+      when:
+        - branch_name is match('^release/') or branch_name in main_branches
+        - fix_version_id is defined
