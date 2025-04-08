@@ -23,6 +23,10 @@
             ""
           {% endif %}
 
+    - name: Проверка значения переменной branch_name
+      debug:
+        msg: "Имя ветки: {{ branch_name }}"
+
     - name: Определить имя релизной версии, если ветка релизная
       set_fact:
         release_version: "{{ branch_name | regex_replace('^release/', '') }}"
