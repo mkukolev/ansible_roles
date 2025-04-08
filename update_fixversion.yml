@@ -1,89 +1,60 @@
 ---
-- name: Update Jira fixVersion based on branch name
+- name: Update Jira fixVersion based on Git branch
   hosts: localhost
   gather_facts: false
+
   vars:
+    jira_user: "{{ ansible_user }}"
+    jira_token: "{{ ansible_password }}"
     jira_url: "https://jira.astralinux.ru"
-    jira_user: "{{ lookup('env', 'JIRA_USER') }}"
-    jira_token: "{{ lookup('env', 'JIRA_API_TOKEN') }}"
-    branch_name: "{{ branch | default('') }}"
-    issue_keys: "{{ issues | default([]) }}"
-    project: "{{MY_PROJECT}}"
-    headers:
-      Authorization: "Basic {{ (jira_user + ':' + jira_token) | b64encode }}"
-      Content-Type: "application/json"
 
   tasks:
-    - name: Определение нового значения fixVersion
+    - name: Determine fixVersion
       set_fact:
-        new_fixversion: >-
-          {{ 'next-release' if branch_name in ['devel', 'main', 'master']
-            else (branch_name if branch_name is match('^[0-9]+\\.[0-9]+(-upd[0-9]+)?$')
-            else None) }}
+        fix_version: >-
+          {% if branch_name.startswith('release-') %}
+            {{ branch_name | regex_replace('^release-', '') }}
+          {% elif branch_name in ['devel', 'develop', 'master', 'main'] %}
+            next-release
+          {% else %}
+            undefined
+          {% endif %}
 
-    - name: Завершаем, если ветка не подходит — fixVersion не меняем
+    - name: Stop if fix_version is undefined
       fail:
-        msg: >-
-          Ветка {{ branch_name }} не является ни основной (devel, main, master),
-          ни релизной (1.x или 1.x-updN). Обновление fixVersion отменено.
-      when: new_fixversion is none
+        msg: "Branch {{ branch_name }} is not for fixVersion update"
+      when: fix_version == 'undefined'
 
-    - name: Получение ID версии в Jira (если уже существует)
-      uri:
-        url: "{{ jira_url }}/rest/api/2/project/{{project}}/versions"
-        method: GET
-        headers: "{{ headers }}"
-        return_content: true
-      register: versions_response
-
-    - name: Установка версии из ответа
+    - name: Extract Jira issue keys from commit messages
       set_fact:
-        fixversion_id: "{{ item.id }}"
-      loop: "{{ versions_response.json }}"
-      when: item.name == new_fixversion
-      loop_control:
-        label: "{{ item.name }}"
-      register: version_lookup
+        issue_keys: >-
+          {{
+            commit_messages
+            | map('regex_findall', '[A-Z][A-Z0-9]+-\d+')
+            | sum(start=[])
+            | unique
+          }}
 
-    - name: Создание новой версии, если не найдена
-      uri:
-        url: "{{ jira_url }}/rest/api/2/version"
-        method: POST
-        headers: "{{ headers }}"
-        body_format: json
-        body:
-          name: "{{ new_fixversion }}"
-          project: "{{project}}"
-        status_code: 201
-      when: version_lookup.results | selectattr('skipped', 'defined') | length == (version_lookup.results | length)
-
-    - name: Повторное получение ID версии (если она была создана)
-      uri:
-        url: "{{ jira_url }}/rest/api/2/project/{{project}}/versions"
-        method: GET
-        headers: "{{ headers }}"
-        return_content: true
-      register: versions_response_final
-
-    - name: Установка финального ID fixVersion
-      set_fact:
-        fixversion_id: "{{ item.id }}"
-      loop: "{{ versions_response_final.json }}"
-      when: item.name == new_fixversion
-      loop_control:
-        label: "{{ item.name }}"
-
-    - name: Обновление задач Jira
+    - name: Update fixVersion in Jira issues
       uri:
         url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
         method: PUT
-        headers: "{{ headers }}"
+        user: "{{ jira_user }}"
+        password: "{{ jira_token }}"
+        force_basic_auth: yes
+        headers:
+          Content-Type: "application/json"
         body_format: json
-        body:
-          update:
-            fixVersions:
-              - set:
-                  id: "{{ fixversion_id }}"
+        body: >
+          {
+            "update": {
+              "fixVersions": [
+                { "set": [{ "name": "{{ fix_version }}" }] }
+              ]
+            }
+          }
+        status_code: [200, 204]
       loop: "{{ issue_keys }}"
       loop_control:
         label: "{{ item }}"
+      ignore_errors: true
