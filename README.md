@@ -1,4 +1,4 @@
-# Обновление fixVersion в задачах Jira при событиях в Bitbucket
+# Обновление FixVersion в задачах Jira при событиях в Bitbucket
 
 ## Назначение
 
