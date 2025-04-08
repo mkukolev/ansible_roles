@@ -43,7 +43,7 @@ Jira API (обновление FixVersion у задач)
 В зависимости от имени ветки, где расположен коммит [update_fixversion.yml](https://github.com/mkukolev/ansible_roles/blob/main/update_fixversion.yml) определяет значение для поля `FixVersion` Jira следующим образом:
 
 - Если имя ветки начинается с `release/`, например `release/1.0-upd3`, то в Jira будет установлена версия `FixVersion` = `1.0-upd3` (вырезается префикс `release/`)
-- Если имя ветки **не** содержит `release/`, например `devel` или `feature/AA-123`, то в Jira будет установлена `FixVersion` = `next-release`.
+- Если имя ветки **не** содержит `release/`, например `devel` или `feature/`, то в Jira будет установлена `FixVersion` = `next-release`.
 
 Таким образом:
 - `release/1.0-upd3` → `FixVersion: 1.0-upd3`
