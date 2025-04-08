@@ -1,4 +1,4 @@
-# Ansible Playbook: Обновление fixVersion у задач Jira при событиях в Bitbucket
+# Обновление fixVersion в задачах Jira при событиях в Bitbucket
 
 ## Назначение
 
