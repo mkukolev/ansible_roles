@@ -1,43 +1,50 @@
 ---
-- name: Update Jira fixVersion based on Git branch
+- name: Update fixVersion in Jira
   hosts: localhost
   gather_facts: false
-
   vars:
     jira_user: "{{ ansible_user }}"
     jira_token: "{{ ansible_password }}"
-    jira_url: "https://jira.astralinux.ru"
 
   tasks:
-    - name: Determine fixVersion
+    - name: Debug webhook payload (удалить позже)
+      debug:
+        var: awx_webhook_payload
+
+    - name: Получить имя ветки из webhook payload
       set_fact:
-        fix_version: >-
-          {% if branch_name.startswith('release-') %}
-            {{ branch_name | regex_replace('^release-', '') }}
-          {% elif branch_name in ['devel', 'develop', 'master', 'main'] %}
+        branch_name: "{{ awx_webhook_payload.changes[0].ref.displayId }}"
+
+    - name: Определить значение fixVersion
+      set_fact:
+        fixversion: >-
+          {% if branch_name.startswith('release/') %}
+            {{ branch_name | regex_replace('^release/', '') }}
+          {% elif branch_name in ['main', 'master', 'devel'] %}
             next-release
           {% else %}
             undefined
           {% endif %}
 
-    - name: Stop if fix_version is undefined
-      fail:
-        msg: "Branch {{ branch_name }} is not for fixVersion update"
-      when: fix_version == 'undefined'
-
-    - name: Extract Jira issue keys from commit messages
+    - name: Собрать список Jira задач из коммитов
       set_fact:
         issue_keys: >-
           {{
-            commit_messages
-            | map('regex_findall', '[A-Z][A-Z0-9]+-\d+')
-            | sum(start=[])
+            awx_webhook_payload.commits
+            | map(attribute='properties')
+            | map(attribute='jira-key')
+            | select('defined')
+            | flatten
             | unique
           }}
 
-    - name: Update fixVersion in Jira issues
+    - name: Jira задачи для обновления
+      debug:
+        var: issue_keys
+
+    - name: Обновить fixVersion в Jira задачах
       uri:
-        url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
+        url: "https://jira.example.com/rest/api/2/issue/{{ item }}"
         method: PUT
         user: "{{ jira_user }}"
         password: "{{ jira_token }}"
@@ -45,16 +52,9 @@
         headers:
           Content-Type: "application/json"
         body_format: json
-        body: >
-          {
-            "update": {
-              "fixVersions": [
-                { "set": [{ "name": "{{ fix_version }}" }] }
-              ]
-            }
-          }
-        status_code: [200, 204]
+        body:
+          fields:
+            fixVersions:
+              - name: "{{ fixversion }}"
       loop: "{{ issue_keys }}"
-      loop_control:
-        label: "{{ item }}"
-      ignore_errors: true
+      when: fixversion != 'undefined' and issue_keys | length > 0
