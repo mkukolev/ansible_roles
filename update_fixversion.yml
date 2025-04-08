@@ -32,11 +32,17 @@
       set_fact:
         matched_issues: "{{ branch_name | regex_findall('[A-Z]+-[0-9]+') }}"
       changed_when: false
-      failed_when: matched_issues | length == 0
+      failed_when: false  # предотвращает ошибку, если нет совпадений
+
+    - name: Пропустить задачу, если нет Jira-задач в имени ветки
+      debug:
+        msg: "Задачи Jira не найдены в имени ветки {{ branch_name }}"
+      when: matched_issues | length == 0
 
     - name: Получить список задач без дубликатов
       set_fact:
         jira_issues: "{{ matched_issues | unique }}"
+      when: matched_issues | length > 0
 
     - name: Получить ID релизной версии, если ветка релизная
       uri:
