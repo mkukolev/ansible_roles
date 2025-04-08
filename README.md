@@ -11,7 +11,7 @@
 Автоматизация реализована через связку Bitbucket → AWX → Ansible → Jira.
 
 ## Архитектура решения
-----
+
 ```
 Bitbucket Webhook
         ↓
