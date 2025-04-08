@@ -5,6 +5,7 @@
   vars:
     jira_user: "{{ ansible_user }}"
     jira_token: "{{ ansible_password }}"
+    jira_url: "https://jira.astralinux.ru"
 
   tasks:
     - name: Debug webhook payload (удалить позже)
@@ -44,7 +45,7 @@
 
     - name: Обновить fixVersion в Jira задачах
       uri:
-        url: "https://jira.example.com/rest/api/2/issue/{{ item }}"
+        url: "{{jira_url}}/rest/api/2/issue/{{ item }}"
         method: PUT
         user: "{{ jira_user }}"
         password: "{{ jira_token }}"
