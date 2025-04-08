@@ -2,60 +2,47 @@
 - name: Update fixVersion in Jira
   hosts: localhost
   gather_facts: false
+
   vars:
-    jira_user: "{{ ansible_user }}"
-    jira_token: "{{ ansible_password }}"
     jira_url: "https://jira.astralinux.ru"
 
   tasks:
-    - name: Debug webhook payload (удалить позже)
-      debug:
-        var: awx_webhook_payload
 
-    - name: Получить имя ветки из webhook payload
+    - name: Определить имя ветки
       set_fact:
         branch_name: "{{ awx_webhook_payload.changes[0].ref.displayId }}"
 
-    - name: Определить значение fixVersion
+    - name: Вычислить значение fixVersion
       set_fact:
-        fixversion: >-
-          {% if branch_name.startswith('release/') %}
-            {{ branch_name | regex_replace('^release/', '') }}
-          {% elif branch_name in ['main', 'master', 'devel'] %}
-            next-release
-          {% else %}
-            undefined
-          {% endif %}
+        fix_version: >-
+          {{ branch_name | regex_replace('^release[-/]', '') if branch_name.startswith('release') else 'next-release' }}
 
-    - name: Собрать список Jira задач из коммитов
+    - name: Извлечь Jira-ключи из коммитов
       set_fact:
-        issue_keys: >-
+        jira_keys: >-
           {{
             awx_webhook_payload.commits
-            | map(attribute='properties')
-            | map(attribute='jira-key')
+            | map(attribute='properties.jira-key')
             | select('defined')
+            | list
             | flatten
             | unique
           }}
 
-    - name: Jira задачи для обновления
-      debug:
-        var: issue_keys
-
-    - name: Обновить fixVersion в Jira задачах
+    - name: Обновить fixVersion у задач Jira
       uri:
-        url: "{{jira_url}}/rest/api/2/issue/{{ item }}"
+        url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
         method: PUT
-        user: "{{ jira_user }}"
-        password: "{{ jira_token }}"
-        force_basic_auth: yes
+        user: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
+        force_basic_auth: true
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
           fields:
             fixVersions:
-              - name: "{{ fixversion }}"
-      loop: "{{ issue_keys }}"
-      when: fixversion != 'undefined' and issue_keys | length > 0
+              - name: "{{ fix_version | trim }}"
+      loop: "{{ jira_keys }}"
+      loop_control:
+        label: "{{ item }}"
