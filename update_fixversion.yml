@@ -5,77 +5,36 @@
 
   vars:
     jira_url: "https://jira.astralinux.ru"
-    main_branches:
-      - devel
-      - master
-      - main
-    next_release_version: "next-release"
 
   tasks:
-    - name: Установить имя ветки из webhook или переменной
+
+    - name: Определить имя ветки
       set_fact:
-        branch_name: >-
-          {% if branch_name is defined %}
-            {{ branch_name }}
-          {% elif webhook_payload is defined and webhook_payload.changes is defined %}
-            {{ webhook_payload.changes[0].ref.displayId }}
-          {% else %}
-            ""
-          {% endif %}
+        branch_name: "{{ awx_webhook_payload.changes[0].ref.displayId }}"
 
-    - name: Проверка значения переменной branch_name
-      debug:
-        msg: "Имя ветки: {{ branch_name }}"
-
-    - name: Определить имя релизной версии, если ветка релизная
+    - name: Вычислить значение fixVersion
       set_fact:
-        release_version: "{{ branch_name | regex_replace('^release/', '') }}"
-      when: branch_name is match('^release/')
+        fix_version: >-
+          {{ branch_name | regex_replace('^release[-/]', '') if branch_name.startswith('release') else 'next-release' }}
 
-    - name: Извлечь задачи Jira из названия ветки
+    - name: Извлечь Jira-ключи из коммитов
       set_fact:
-        matched_issues: "{{ branch_name | regex_findall('[A-Z]+-[0-9]+') }}"
-      changed_when: false
-      failed_when: false  # предотвращает ошибку, если нет совпадений
-
-    - name: Пропустить задачу, если нет Jira-задач в имени ветки
-      debug:
-        msg: "Задачи Jira не найдены в имени ветки {{ branch_name }}"
-      when: matched_issues | length == 0
-
-    - name: Получить список задач без дубликатов
-      set_fact:
-        jira_issues: "{{ matched_issues | unique }}"
-      when: matched_issues | length > 0
-
-    - name: Получить ID релизной версии, если ветка релизная
-      uri:
-        url: "https://jira.astralinux.ru/rest/api/2/project/AA/versions"
-        method: GET
-        user: "{{ jira_username }}"
-        password: "{{ jira_password }}"
-        force_basic_auth: true
-        return_content: true
-        status_code: 200
-      register: versions_response
-      when: branch_name is match('^release/') or branch_name in main_branches
-
-    - name: Найти ID релизной версии по имени
-      set_fact:
-        fix_version_id: "{{ (versions_response.json | selectattr('name', 'equalto', release_version) | list).0.id }}"
-      when: branch_name is match('^release/')
-
-    - name: Найти ID next-release версии, если ветка основная
-      set_fact:
-        fix_version_id: "{{ (versions_response.json | selectattr('name', 'equalto', next_release_version) | list).0.id }}"
-      when: branch_name in main_branches
+        jira_keys: >-
+          {{
+            awx_webhook_payload.commits
+            | map(attribute='properties.jira-key')
+            | select('defined')
+            | list
+            | flatten
+            | unique
+          }}
 
     - name: Обновить fixVersion у задач Jira
       uri:
-        url: "https://jira.astralinux.ru/rest/api/2/issue/{{ item }}"
+        url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
         method: PUT
-        user: "{{ jira_username }}"
-        password: "{{ jira_password }}"
+        user: "{{ ansible_user }}"
+        password: "{{ ansible_password }}"
         force_basic_auth: true
         headers:
           Content-Type: "application/json"
@@ -83,11 +42,8 @@
         body:
           fields:
             fixVersions:
-              - id: "{{ fix_version_id }}"
-        status_code: 204
-      loop: "{{ jira_issues }}"
+              - name: "{{ fix_version | trim }}"
+        status_code: [200, 204]  # <-- вот это важно
+      loop: "{{ jira_keys }}"
       loop_control:
         label: "{{ item }}"
-      when:
-        - branch_name is match('^release/') or branch_name in main_branches
-        - fix_version_id is defined
