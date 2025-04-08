@@ -43,6 +43,7 @@
           fields:
             fixVersions:
               - name: "{{ fix_version | trim }}"
+        status_code: [200, 204]
       loop: "{{ jira_keys }}"
       loop_control:
         label: "{{ item }}"
