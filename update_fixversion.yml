@@ -29,14 +29,14 @@
       when: branch_name is match('^release/')
 
     - name: Извлечь задачи Jira из названия ветки
-      shell: echo "{{ branch_name }}" | grep -Eo '[A-Z]+-[0-9]+'
-      register: matched_issues
+      set_fact:
+        matched_issues: "{{ branch_name | regex_findall('[A-Z]+-[0-9]+') }}"
       changed_when: false
-      failed_when: matched_issues.rc != 0 and matched_issues.stdout == ""
+      failed_when: matched_issues | length == 0
 
     - name: Получить список задач без дубликатов
       set_fact:
-        jira_issues: "{{ matched_issues.stdout_lines | unique }}"
+        jira_issues: "{{ matched_issues | unique }}"
 
     - name: Получить ID релизной версии, если ветка релизная
       uri:
