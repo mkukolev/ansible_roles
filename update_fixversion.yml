@@ -5,16 +5,27 @@
 
   vars:
     jira_url: "https://jira.astralinux.ru"
-    branch_name: "{{ branch_name | default(webhook_payload.changes[0].ref.displayId, true) }}"
-    is_release_branch: "{{ branch_name is match('^release\\/[^\\s]+$') }}"
-    is_main_branch: "{{ branch_name in ['devel', 'master', 'main'] }}"
-    is_feature_or_bugfix_branch: "{{ branch_name is match('^(feature|bugfix)\\/[^\\s]+$') }}"
-    release_version_name: "{{ branch_name | regex_replace('^release\\/', '') }}"
-    main_branch_version_name: "next-release"
-
-    fix_version_name: null
+    fix_version_name: ""
+    fix_version_id: ""
+    jira_project_key: "AA"
+    next_release_version: "next-release"
 
   tasks:
+
+    - name: Установить имя ветки из webhook или переменной
+      set_fact:
+        branch_name: "{{ branch_name | default(webhook_payload.changes[0].ref.displayId, true) }}"
+
+    - name: Установить имя версии, если ветка релизная
+      set_fact:
+        fix_version_name: "{{ branch_name | regex_replace('^release/', '') }}"
+      when: branch_name is match('^release/')
+
+    - name: Установить имя версии, если ветка основная (devel, main, master)
+      set_fact:
+        fix_version_name: "{{ next_release_version }}"
+      when: branch_name in ['devel', 'main', 'master']
+
     - name: Извлечь задачи Jira из названия ветки
       shell: echo "{{ branch_name }}" | grep -Eo '[A-Z]+-[0-9]+'
       register: matched_issues
@@ -23,48 +34,11 @@
     - name: Получить список задач без дубликатов
       set_fact:
         jira_issues: "{{ matched_issues.stdout_lines | unique }}"
+      when: matched_issues.stdout_lines | length > 0
 
-    - name: Завершить выполнение, если задачи не найдены
-      meta: end_play
-      when: jira_issues | length == 0
-
-    - name: Пропустить обновление, если ветка feature/ или bugfix/
-      debug:
-        msg: "fixVersion не требуется для ветки разработки ({{ branch_name }})"
-      when: is_feature_or_bugfix_branch
-      tags: skip_dev_branch
-
-    - name: Получить текущие данные задач Jira
-      when: not is_feature_or_bugfix_branch
+    - name: Получить список всех версий проекта в Jira
       uri:
-        url: "https://jira.astralinux.ru/rest/api/2/issue/{{ item }}"
-        method: GET
-        user: "{{ jira_username }}"
-        password: "{{ jira_password }}"
-        force_basic_auth: true
-        return_content: true
-        status_code: 200
-      loop: "{{ jira_issues }}"
-      register: jira_issue_data
-
-    - name: Определить итоговое значение fixVersion для каждой задачи
-      set_fact:
-        issues_to_update: >-
-          {{
-            jira_issue_data.results | map(attribute='json') | map('combine', {
-              'new_fix_version': (
-                is_release_branch
-                | ternary(release_version_name,
-                  is_main_branch | ternary(main_branch_version_name, omit)
-                )
-              )
-            }) | list
-          }}
-
-    - name: Получить ID нужной версии
-      when: issues_to_update | length > 0
-      uri:
-        url: "https://jira.astralinux.ru/rest/api/2/project/AA/versions"
+        url: "https://jira.astralinux.ru/rest/api/2/project/{{ jira_project_key }}/versions"
         method: GET
         user: "{{ jira_username }}"
         password: "{{ jira_password }}"
@@ -72,11 +46,16 @@
         return_content: true
         status_code: 200
       register: versions_response
+      when: fix_version_name != ""
+
+    - name: Найти ID нужной версии
+      set_fact:
+        fix_version_id: "{{ (versions_response.json | selectattr('name', 'equalto', fix_version_name) | list).0.id }}"
+      when: fix_version_name != ""
 
     - name: Обновить fixVersion у задач Jira
-      when: issues_to_update | length > 0
       uri:
-        url: "https://jira.astralinux.ru/rest/api/2/issue/{{ item.key }}"
+        url: "https://jira.astralinux.ru/rest/api/2/issue/{{ item }}"
         method: PUT
         user: "{{ jira_username }}"
         password: "{{ jira_password }}"
@@ -84,23 +63,12 @@
         headers:
           Content-Type: "application/json"
         body_format: json
-        body: >-
-          {{
-            {
-              "fields": {
-                "fixVersions": [
-                  {
-                    "id": (
-                      versions_response.json
-                      | selectattr('name', 'equalto', item.new_fix_version)
-                      | list
-                    )[0].id
-                  }
-                ]
-              }
-            }
-          }}
+        body:
+          fields:
+            fixVersions:
+              - id: "{{ fix_version_id }}"
         status_code: 204
-      loop: "{{ issues_to_update }}"
+      loop: "{{ jira_issues }}"
       loop_control:
-        label: "{{ item.key }}"
+        label: "{{ item }}"
+      when: fix_version_id != ""
