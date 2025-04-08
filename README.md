@@ -1,12 +1,12 @@
-# Ansible Playbook: Обновление FixVersion у задач Jira при событиях в Bitbucket
+# Playbook для обновления FixVersion у задач Jira при событиях в Bitbucket
 
 ## Назначение
 
 Этот Ansible Playbook используется для автоматического обновления поля `FixVersion` у задач в Jira, связанных с коммитами в определённых ветках Bitbucket. 
 Обновление происходит при:
 
-- Слиянии (`merge`) функционала в ветка `feature/` и `bugfix/` для веток `devel`, `master`, `main` и `release/*`
-- Создании новой релизной ветки `release/*`
+- Слиянии функционала из веткок разработки для `devel`, `master`, `main` и `release/*`.
+- Создании новой релизной ветки `release/*` со связанными коммитам из задач Jira.
 
 Автоматизация реализована через связку Bitbucket → AWX → Ansible → Jira.
 
