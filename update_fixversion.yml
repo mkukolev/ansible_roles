@@ -70,8 +70,8 @@
 
     - name: Найти ID версии по имени
       set_fact:
-        version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list)[0].id }}"
-      when: (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list) | length > 0
+        version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', name) | list)[0].id }}"
+      when: (jira_versions_response.json | selectattr('name', 'equalto', name) | list) | length > 0
 
     - name: Проверка найденного ID версии
       debug:
