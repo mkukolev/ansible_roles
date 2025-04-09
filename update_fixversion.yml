@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    jira_base_url: "https://jira.astralinux.ru"
+    jira_url: "https://jira.astralinux.ru"
     jira_user: "{{ ansible_user }}"
     jira_api_token: "{{ ansible_password }}"
     next_release_name: next-release
@@ -18,51 +18,59 @@
       debug:
         msg: "Имя ветки: {{ branch_name }}"
 
-    - name: Получить список всех задач из webhook
+    - name: Установить имя релизной версии, если ветка релизная
       set_fact:
-        all_issue_keys: "{{ awx_webhook_payload.commits | map(attribute='properties') | map(attribute='jira-key') | select('defined') | list | flatten | unique }}"
+        release_name: "{{ branch_name | regex_replace('^release/', '') }}"
+      when: branch_name is search('^release/')
+
+    - name: Извлечь задачи Jira из всех коммитов webhook
+      set_fact:
+        all_issue_keys: "{{ awx_webhook_payload.commits | map(attribute='properties.jira-key') | flatten | unique }}"
 
     - name: Проверка найденных задач Jira
       debug:
         var: all_issue_keys
 
+    - name: Пропустить обновление, если задач нет
+      meta: end_play
+      when: all_issue_keys | length == 0
+
     - name: Определить имя версии (релизной или next-release)
       set_fact:
-        version_name: >-
-          {% if branch_name.startswith('release/') %}
-            {{ branch_name.split('release/')[1] }}
+        fixversion_name: >-
+          {% if branch_name is search('^release/') %}
+            {{ release_name }}
           {% elif branch_name in ['devel', 'master', 'main'] %}
             {{ next_release_name }}
           {% else %}
-            ""
+            ''
           {% endif %}
 
     - name: Проверка определённого имени версии
       debug:
-        msg: "Имя версии: {{ version_name }}"
+        msg: "Имя версии: {{ fixversion_name }}"
 
     - name: Пропустить обновление, если версия не требуется
       meta: end_play
-      when: version_name == ""
+      when: fixversion_name == ''
 
     - name: Получить список всех версий проекта
       uri:
-        url: "{{ jira_base_url }}/rest/api/2/project/{{ awx_webhook_payload.repository.project.key }}/versions"
+        url: "{{ jira_url }}/rest/api/2/project/{{ jira_project_key }}/versions"
         method: GET
         user: "{{ jira_user }}"
         password: "{{ jira_api_token }}"
         force_basic_auth: true
+        return_content: yes
+        status_code: 200
         headers:
           Content-Type: "application/json"
-        return_content: true
-      register: all_versions_response
+      register: jira_versions_response
 
     - name: Найти ID версии по имени
       set_fact:
-        version_id: >-
-          {{ (all_versions_response.json | selectattr('name', 'equalto', version_name) | list)[0].id }}
-      when: >
-        all_versions_response.json | selectattr('name', 'equalto', version_name) | list | length > 0
+        version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list)[0].id }}"
+      when: (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list) | length > 0
 
     - name: Проверка найденного ID версии
       debug:
@@ -71,22 +79,17 @@
 
     - name: Обновить fixVersion у задач Jira
       uri:
-        url: "{{ jira_base_url }}/rest/api/2/issue/{{ item }}"
+        url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
         method: PUT
         user: "{{ jira_user }}"
         password: "{{ jira_api_token }}"
         force_basic_auth: true
         headers:
           Content-Type: "application/json"
-        body: |
-          {
-            "fields": {
-              "fixVersions": [
-                { "id": "{{ version_id }}" }
-              ]
-            }
-          }
         body_format: json
-        status_code: 204
+        body:
+          fields:
+            fixVersions:
+              - id: "{{ version_id }}"
       loop: "{{ all_issue_keys }}"
       when: version_id is defined
