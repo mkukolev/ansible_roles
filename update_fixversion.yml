@@ -63,7 +63,7 @@
         password: "{{ jira_api_token }}"
         force_basic_auth: true
         return_content: yes
-        status_code: 200
+        status_code: [200, 204]
         headers:
           Content-Type: "application/json"
       register: jira_versions_response
@@ -71,7 +71,10 @@
     - name: Найти ID версии по имени
       set_fact:
         version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list)[0].id }}"
+      debug: "{{version_id}}"
       when: (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list) | length > 0
+
+
 
     - name: Проверка найденного ID версии
       debug:
