@@ -4,6 +4,8 @@
   gather_facts: false
 
   vars:
+    jira_username: "{{ ansible_user }}"
+    jira_password: "{{ ansible_password }}"
     default_next_release: "next-release"
     release_version_name: ""
     fix_version_name: ""
