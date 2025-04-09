@@ -74,7 +74,8 @@
       when: (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list) | length > 0
 
     - name: Вывод списка ID версии релизов
-      debug: "{{version_id}}"
+      debug: 
+        msg: Список версий "{{ version_id }}"
 
     - name: Проверка найденного ID версии
       debug:
