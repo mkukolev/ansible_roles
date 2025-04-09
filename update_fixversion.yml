@@ -23,9 +23,9 @@
         release_name: "{{ branch_name | regex_replace('^release/', '') }}"
       when: branch_name is search('^release/')
 
-    - name: Извлечь задачи Jira из всех коммитов webhook
+    - name: Получить список всех задач из webhook
       set_fact:
-        all_issue_keys: "{{ awx_webhook_payload.commits | map(attribute='properties.jira-key') | flatten | unique }}"
+        all_issue_keys: "{{ awx_webhook_payload.commits | map(attribute='properties') | map(attribute='jira-key') | select('defined') | list | flatten | unique }}"
 
     - name: Проверка найденных задач Jira
       debug:
