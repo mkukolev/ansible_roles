@@ -42,8 +42,8 @@
       uri:
         url: "{{ jira_base_url }}/rest/api/2/project/{{ jira_project_key }}/versions"
         method: GET
-        user: "{{ jira_user }}"
-        password: "{{ jira_api_token }}"
+        user: "{{ jira_username }}"
+        password: "{{ jira_password }}"
         force_basic_auth: yes
         return_content: yes
         headers:
@@ -62,8 +62,8 @@
       uri:
         url: "{{ jira_base_url }}/rest/api/2/issue/{{ item }}"
         method: PUT
-        user: "{{ jira_user }}"
-        password: "{{ jira_api_token }}"
+        user: "{{ jira_username }}"
+        password: "{{ jira_password }}"
         force_basic_auth: yes
         headers:
           Content-Type: "application/json"
@@ -90,8 +90,8 @@
       uri:
         url: "{{ jira_base_url }}/rest/api/2/issue/{{ item }}"
         method: PUT
-        user: "{{ jira_user }}"
-        password: "{{ jira_api_token }}"
+        user: "{{ jira_username }}"
+        password: "{{ jira_password }}"
         force_basic_auth: yes
         headers:
           Content-Type: "application/json"
