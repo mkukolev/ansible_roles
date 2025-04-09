@@ -47,6 +47,10 @@
             ''
           {% endif %}
 
+    - name: Очистить имя версии от пробелов и перевода строки
+      set_fact:
+        fixversion_name: "{{ fixversion_name | trim }}"
+
     - name: Проверка определённого имени версии
       debug:
         msg: "Имя версии: {{ fixversion_name }}"
