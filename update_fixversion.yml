@@ -10,6 +10,10 @@
     jira_project_key: "AA"
 
   tasks:
+    - name: Проверяем, что в данных от webhook содержатся комитиы
+      fail:
+        msg: "Webhook не содержит никаких коммитов от задач. Возможно старт шаблона был связан c удалением ветки. Отменяем выполнение обновления FixVersion."
+      when: commits is not defined or commits | length == 0
 
     - name: Установить имя ветки из webhook
       set_fact:
