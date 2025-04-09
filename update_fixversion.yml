@@ -100,5 +100,6 @@
           fields:
             fixVersions:
               - id: "{{ version_id }}"
+        status_code: [200, 204]  # <--- ВАЖНО: добавили сюда
       loop: "{{ all_issue_keys }}"
       when: version_id is defined
