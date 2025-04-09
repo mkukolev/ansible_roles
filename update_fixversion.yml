@@ -11,13 +11,13 @@
 
   tasks:
   
-    - name: Webhook не содержит коммитов — завершаем выполнение
-      debug:
-        msg: "Webhook не содержит коммитов — возможно, это удаление ветки. Завершаем выполнение без ошибок."
-      when: commits is not defined or commits | length == 0
+    # - name: Webhook не содержит коммитов — завершаем выполнение
+    #   debug:
+    #     msg: "Webhook не содержит коммитов — возможно, это удаление ветки. Завершаем выполнение без ошибок."
+    #   when: commits is not defined or commits | length == 0
 
-    - meta: end_play
-      when: commits is not defined or commits | length == 0
+    # - meta: end_play
+    #   when: commits is not defined or commits | length == 0
 
     - name: Установить имя ветки из webhook
       set_fact:
