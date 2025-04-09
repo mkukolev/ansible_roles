@@ -7,9 +7,13 @@
     jira_username: "{{ ansible_user }}"
     jira_password: "{{ ansible_password }}"
     jira_base_url: "https://jira.astralinux.ru"
-    jira_project_key: "AA"
+    jira_project_key: "AA"  
 
   tasks:
+
+    - name: Скопировать payload из awx_webhook_payload
+      set_fact:
+        webhook_payload: "{{ awx_webhook_payload }}"
 
     - name: Установить имя ветки из webhook
       set_fact:
