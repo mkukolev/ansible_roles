@@ -10,7 +10,7 @@
     jira_project_key: "AA"
 
   tasks:
-  
+
     - name: Webhook не содержит коммитов — завершаем выполнение
       debug:
         msg: "Webhook не содержит коммитов — возможно, это удаление ветки. Завершаем выполнение без ошибок."
@@ -27,11 +27,6 @@
       debug:
         msg: "Имя ветки: {{ branch_name }}"
 
-    - name: Установить имя релизной версии, если ветка релизная
-      set_fact:
-        release_name: "{{ branch_name | regex_replace('^release/', '') }}"
-      when: branch_name is search('^release/')
-
     - name: Получить список всех задач из webhook
       set_fact:
         all_issue_keys: "{{ awx_webhook_payload.commits | map(attribute='properties') | map(attribute='jira-key') | select('defined') | list | flatten | unique }}"
@@ -44,28 +39,20 @@
       meta: end_play
       when: all_issue_keys | length == 0
 
-    - name: Определить имя версии (релизной или next-release)
+    - name: Проверка, является ли ветка релизной
       set_fact:
-        fixversion_name: >-
-          {% if branch_name is search('^release/') %}
-            {{ release_name }}
-          {% elif branch_name in ['devel', 'master', 'main'] %}
-            {{ next_release_name }}
-          {% else %}
-            ''
-          {% endif %}
+        is_release_branch: true
+        release_name: "{{ branch_name | regex_replace('^release/', '') }}"
+      when: branch_name is match('^release/')
 
-    - name: Очистить имя версии от пробелов и перевода строки
+    - name: Проверка, является ли ветка основной
       set_fact:
-        fixversion_name: "{{ fixversion_name | trim }}"
+        is_main_branch: true
+      when: branch_name in ['devel', 'master', 'main']
 
-    - name: Проверка определённого имени версии
-      debug:
-        msg: "Имя версии: {{ fixversion_name }}"
-
-    - name: Пропустить обновление, если версия не требуется
+    - name: Проверка, является ли ветка фичей/багфиксом — если да, завершаем
       meta: end_play
-      when: fixversion_name == ''
+      when: branch_name is match('^(feature|bugfix)/')
 
     - name: Получить список всех версий проекта
       uri:
@@ -80,34 +67,65 @@
           Content-Type: "application/json"
       register: jira_versions_response
 
-    - name: Найти ID версии по имени
+    - name: Найти ID версии релиза (если релизная ветка)
       set_fact:
-        version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list)[0].id }}"
-      when: (jira_versions_response.json | selectattr('name', 'equalto', fixversion_name) | list) | length > 0
+        release_version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', release_name) | list)[0].id }}"
+      when: is_release_branch | default(false)
 
-    - name: Вывод списка ID версии релизов
-      debug: 
-        msg: Список версий "{{ version_id }}"
-
-    - name: Проверка найденного ID версии
-      debug:
-        msg: "ID версии: {{ version_id }}"
-      when: version_id is defined
+    - name: Найти ID версии next-release (если основная ветка)
+      set_fact:
+        next_release_version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', next_release_name) | list)[0].id }}"
+      when: is_main_branch | default(false)
 
     - name: Обновить fixVersion у задач Jira
-      uri:
-        url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
-        method: PUT
-        user: "{{ jira_user }}"
-        password: "{{ jira_api_token }}"
-        force_basic_auth: true
-        headers:
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          fields:
-            fixVersions:
-              - id: "{{ version_id }}"
-        status_code: [200, 204]
-      loop: "{{ all_issue_keys }}"
-      when: version_id is defined
+      block:
+        - name: Получить текущие fixVersion задачи
+          uri:
+            url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
+            method: GET
+            user: "{{ jira_user }}"
+            password: "{{ jira_api_token }}"
+            force_basic_auth: true
+            return_content: yes
+            headers:
+              Content-Type: "application/json"
+          register: issue_response
+          loop: "{{ all_issue_keys }}"
+          loop_control:
+            label: "{{ item }}"
+          vars:
+            issue_key: "{{ item }}"
+
+        - name: Подготовить новые версии для задачи
+          set_fact:
+            updated_versions: >-
+              {%- set current_versions = (issue_response.results[loop.index0].json.fields.fixVersions | map(attribute='id') | list) -%}
+              {%- set updated = current_versions | difference([next_release_version_id|string]) if is_release_branch | default(false) else current_versions -%}
+              {%- if is_release_branch | default(false) -%}
+                {{ (updated + [release_version_id|string]) | unique }}
+              {%- elif is_main_branch | default(false) and next_release_version_id is defined -%}
+                {{ (updated + [next_release_version_id|string]) | unique }}
+              {%- else -%}
+                {{ current_versions }}
+              {%- endif -%}
+
+        - name: Преобразовать список версий в нужный формат
+          set_fact:
+            updated_versions_structured: "{{ updated_versions | map('regex_replace', '^(.*)$', '{\"id\": \"\\1\"}') | map('from_json') | list }}"
+
+        - name: Обновить задачу Jira
+          uri:
+            url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
+            method: PUT
+            user: "{{ jira_user }}"
+            password: "{{ jira_api_token }}"
+            force_basic_auth: true
+            headers:
+              Content-Type: "application/json"
+            body_format: json
+            body:
+              fields:
+                fixVersions: "{{ updated_versions_structured }}"
+            status_code: [200, 204]
+          loop: "{{ all_issue_keys }}"
+      when: release_version_id is defined or next_release_version_id is defined
