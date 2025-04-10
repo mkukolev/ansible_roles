@@ -91,36 +91,33 @@
       loop: "{{ all_issue_keys }}"
       register: issue_response
 
-    - name: Подготовить и обновить fixVersions для каждой задачи
-      block:
-        - name: Подготовить новые версии
-          set_fact:
-            current_versions: "{{ issue_response.results[index0].json.fields.fixVersions | map(attribute='id') | list }}"
-            updated_versions: >-
-              {% set base = current_versions %}
-              {% if is_release_branch %}
-                {% set base = base | difference([next_release_version_id|string]) if next_release_version_id is defined else base %}
-                {{ (base + [release_version_id|string]) | unique }}
-              {% elif is_main_branch and next_release_version_id is defined %}
-                {{ (base + [next_release_version_id|string]) | unique }}
-              {% else %}
-                {{ base }}
-              {% endif %}
-            updated_versions_structured: "{{ updated_versions | map('regex_replace', '^(.*)$', '{\"id\": \"\\1\"}') | map('from_json') | list }}"
-        - name: Обновить задачу Jira
-          uri:
-            url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
-            method: PUT
-            user: "{{ jira_user }}"
-            password: "{{ jira_api_token }}"
-            force_basic_auth: true
-            headers:
-              Content-Type: "application/json"
-            body_format: json
-            body:
-              fields:
-                fixVersions: "{{ updated_versions_structured }}"
-            status_code: [200, 204]
+    - name: Обновить задачи Jira с нужными версиями
+      vars:
+        current_versions: "{{ issue_response.results[index0].json.fields.fixVersions | map(attribute='id') | list }}"
+        updated_versions: >-
+          {% set base = current_versions %}
+          {% if is_release_branch %}
+            {% set base = base | difference([next_release_version_id|string]) if next_release_version_id is defined else base %}
+            {{ (base + [release_version_id|string]) | unique }}
+          {% elif is_main_branch and next_release_version_id is defined %}
+            {{ (base + [next_release_version_id|string]) | unique }}
+          {% else %}
+            {{ base }}
+          {% endif %}
+        updated_versions_structured: "{{ updated_versions | map('regex_replace', '^(.*)$', '{\"id\": \"\\1\"}') | map('from_json') | list }}"
+      uri:
+        url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
+        method: PUT
+        user: "{{ jira_user }}"
+        password: "{{ jira_api_token }}"
+        force_basic_auth: true
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          fields:
+            fixVersions: "{{ updated_versions_structured }}"
+        status_code: [200, 204]
       loop: "{{ all_issue_keys }}"
       loop_control:
         index_var: index0
