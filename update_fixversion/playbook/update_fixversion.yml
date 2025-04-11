@@ -278,46 +278,44 @@
       set_fact:
         issues_to_update: >-
           {{
-            issues_response.results | map(attribute='json') | map('combine', {
-              'issue': item.key,
-              'current_versions': item.fields.fixVersions | map(attribute='id') | list,
+            issues_to_update | default([]) + [ {
+              'issue': issue_data.key,
+              'current_versions': issue_data.fields.fixVersions | map(attribute='id') | list,
               'new_versions': (
                 (
                   (
-                    (item.fields.fixVersions | rejectattr('name', 'equalto', next_release_name) | map(attribute='id') | list)
+                    issue_data.fields.fixVersions | rejectattr('name', 'equalto', next_release_name) | map(attribute='id') | list
                     + ([release_version_id] if release_version_id is defined else [])
                   )
                   if release_version_id is defined else
                   (
-                    (item.fields.fixVersions | map(attribute='id') | list)
+                    issue_data.fields.fixVersions | map(attribute='id') | list
                     + ([next_release_version_id] if next_release_version_id is defined else [])
                   )
                 ) | unique
               ),
               'update_required': (
-                item.fields.fixVersions | map(attribute='id') | list | sort
+                issue_data.fields.fixVersions | map(attribute='id') | list | sort
                 !=
                 (
                   (
                     (
-                      (item.fields.fixVersions | rejectattr('name', 'equalto', next_release_name) | map(attribute='id') | list
+                      issue_data.fields.fixVersions | rejectattr('name', 'equalto', next_release_name) | map(attribute='id') | list
                       + ([release_version_id] if release_version_id is defined else [])
                     )
                     if release_version_id is defined else
                     (
-                      (item.fields.fixVersions | map(attribute='id') | list)
+                      issue_data.fields.fixVersions | map(attribute='id') | list
                       + ([next_release_version_id] if next_release_version_id is defined else [])
                     )
                   ) | unique | sort
                 )
               )
-            })
+            } ]
           }}
-      vars:
-        item: "{{ item }}"
       loop: "{{ issues_response.results | map(attribute='json') | list }}"
       loop_control:
-        loop_var: item
+        loop_var: issue_data
 
     - name: Какие fixVersion ID пойдут в задачу
       debug:
