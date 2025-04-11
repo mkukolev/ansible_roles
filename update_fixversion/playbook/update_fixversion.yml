@@ -48,11 +48,17 @@
           Content-Type: "application/json"
       register: jira_versions_response
 
-    - name: Найти ID версии релиза (если релизная ветка)
+    - name: Установить имя релиза (если релизная ветка)
       set_fact:
         release_name: "{{ branch_name | regex_replace('^release/', '') }}"
+      when: branch_name is search('^release/')
+
+    - name: Найти ID версии релиза (если релизная ветка)
+      set_fact:
         release_version_id: "{{ (jira_versions_response.json | selectattr('name', 'equalto', release_name) | list)[0].id }}"
-      when: branch_name is search('^release/') and (jira_versions_response.json | selectattr('name', 'equalto', branch_name | regex_replace('^release/', '')) | list) | length > 0
+      when:
+        - branch_name is search('^release/')
+        - (jira_versions_response.json | selectattr('name', 'equalto', release_name) | list) | length > 0
 
     - name: Найти ID версии next-release (если основная ветка)
       set_fact:
@@ -124,7 +130,7 @@
         body_format: json
         body:
           fields:
-            fixVersions: "{{ item.new_versions | map('extract', version_id_map) | map('community.general.to_json', '{\"id\": \"\\1\"}) | map('from_json') | list }}"
+            fixVersions: "{{ item.new_versions | map('extract', version_id_map) | map('community.general.to_json', '{\"id\": \"\\1\"}') | map('from_json') | list }}"
         status_code: [200, 204]
       loop: "{{ updated_issues }}"
 
