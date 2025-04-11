@@ -5,8 +5,8 @@
 
   vars:
     jira_url: "https://jira.astralinux.ru"
-    jira_user: "{{ lookup('env', 'JIRA_USER') }}"
-    jira_token: "{{ lookup('env', 'JIRA_API_TOKEN') }}"
+    jira_user: "{{ ansible_user }}"
+    jira_token: "{{ ansible_password }}"
     jira_project_key: "AA"
     next_release_name: "next-release"
 
