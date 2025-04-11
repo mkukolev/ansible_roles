@@ -24,10 +24,6 @@
       set_fact:
         commits: "{{ webhook_payload.commits | default([]) }}"
 
-    - name: Пропустить обновление, если нет коммитов
-      meta: end_play
-      when: commits | length == 0
-
     - name: Извлечь имя ветки из webhook
       set_fact:
         branch_name: "{{ webhook_payload.changes[0].ref.displayId }}"
