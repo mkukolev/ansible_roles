@@ -159,12 +159,12 @@
           fields:
             # fixVersions: "{{ item.new_versions | map('regex_replace', '^(.*)$', {'id': '\\1'}) | list }}"
             fixVersions: >-
-              {{ 
-                item.new_versions | 
-                map('regex_replace', '(.*)', '{"id": "\\1"}') | 
-                map('from_json') | 
-                list 
-              }}
+              [
+              {% for version_id in item.new_versions %}
+                {"id": "{{ version_id }}"}
+                {% if not loop.last %},{% endif %}
+              {% endfor %}
+              ]
       loop: "{{ issues_to_update }}"
       when: item.update_required
 
