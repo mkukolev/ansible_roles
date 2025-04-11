@@ -22,7 +22,7 @@
 
     - name: Получить список всех коммитов из webhook
       set_fact:
-        commits: "{{ awx_webhook_payload | default([]) }}"
+        commits: "{{ awx_webhook_payload.commits | default([]) }}"
 
     - name: Извлечь имя ветки из webhook
       set_fact:
