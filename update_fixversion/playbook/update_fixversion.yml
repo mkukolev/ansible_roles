@@ -22,11 +22,11 @@
 
     - name: Получить список всех коммитов из webhook
       set_fact:
-        commits: "{{ webhook_payload.commits | default([]) }}"
+        commits: "{{ awx_webhook_payload | default([]) }}"
 
     - name: Извлечь имя ветки из webhook
       set_fact:
-        branch_name: "{{ webhook_payload.changes[0].ref.displayId }}"
+        branch_name: "{{ awx_webhook_payload.changes[0].ref.displayId }}"
 
     - name: Определить список задач из коммитов
       set_fact:
