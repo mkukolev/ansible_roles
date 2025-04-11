@@ -11,12 +11,14 @@
     next_release_name: "next-release"
 
   tasks:
-    - name: Завершить выполнение, если нет webhook_payload
-      when: webhook_payload is not defined
-      block:
-        - debug:
-            msg: "webhook_payload не определён. Прерываем выполнение."
-        - meta: end_play
+
+    - name: Webhook не содержит коммитов — завершаем выполнение
+      debug:
+        msg: "Webhook не содержит коммитов — возможно, это удаление ветки. Завершаем выполнение без ошибок."
+      when: awx_webhook_payload.commits is not defined or awx_webhook_payload.commits | length == 0
+
+    - meta: end_play
+      when: awx_webhook_payload.commits is not defined or awx_webhook_payload.commits | length == 0
 
     - name: Получить список всех коммитов из webhook
       set_fact:
