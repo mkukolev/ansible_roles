@@ -81,7 +81,7 @@
 
     - name: Получить текущие fixVersion задач
       uri:
-        url: "{{ jira_url }}/rest/api/2/issue/{{ item }}"
+        url: "{{ jira_url }}/rest/api/2/issue/{{ issue_key }}"
         method: GET
         user: "{{ jira_user }}"
         password: "{{ jira_token }}"
@@ -166,6 +166,5 @@
       when: item.update_required
       loop_control:
         loop_var: item
-
 
         
