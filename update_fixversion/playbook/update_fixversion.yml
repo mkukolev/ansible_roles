@@ -150,21 +150,21 @@
       when: item.update_required
 
     - name: Обновить задачи Jira с нужными версиями
-      uri:
-        url: "{{ jira_url }}/rest/api/2/issue/{{ item.issue }}"
-        method: PUT
-        user: "{{ jira_user }}"
-        password: "{{ jira_token }}"
-        force_basic_auth: true
-        headers:
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          fields:
-            fixVersions: "{{ item.new_versions | map('community.general.dict_kv', 'id') | list }}"
-      loop: "{{ issues_to_update }}"
-      when: item.update_required
-      loop_control:
-        loop_var: item
+  uri:
+    url: "{{ jira_url }}/rest/api/2/issue/{{ item.issue }}"
+    method: PUT
+    user: "{{ jira_user }}"
+    password: "{{ jira_token }}"
+    force_basic_auth: true
+    headers:
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      fields:
+        fixVersions: "{{ item.new_versions | map('regex_replace', '^(.*)$', '{\"id\": \"\\1\"}') | map('from_json') | list }}"
+  loop: "{{ issues_to_update }}"
+  when: item.update_required
+  loop_control:
+    loop_var: item
 
         
