@@ -269,14 +269,9 @@
           {{
             issues_to_update | default([]) + [ {
               'issue': issue_data.key,
-              'current_versions': issue_data.fields.fixVersions | map(attribute='id') | list,
+              'current_versions': current_ids,
               'has_release': (
-                issue_data.fields.fixVersions
-                | map(attribute='id')
-                | map('extract', version_id_name_map)
-                | select('search', '^\\d')
-                | list
-                | length > 0
+                current_names | select('search', '^\\d') | list | length > 0
               ),
               'new_versions': (
                 (
@@ -286,22 +281,18 @@
                   )
                   if release_version_id is defined else
                   (
-                    issue_data.fields.fixVersions | map(attribute='id') | list
+                    current_ids
                     + (
                         ([next_release_version_id]
                           if next_release_version_id is defined and (
-                            issue_data.fields.fixVersions
-                            | map(attribute='id')
-                            | map('extract', version_id_name_map)
-                            | select('search', '^\\d')
-                            | list | length == 0)
+                            current_names | select('search', '^\\d') | list | length == 0)
                           else [])
                       )
                   )
                 ) | unique
               ),
               'update_required': (
-                issue_data.fields.fixVersions | map(attribute='id') | list | sort
+                current_ids | sort
                 !=
                 (
                   (
@@ -311,15 +302,11 @@
                     )
                     if release_version_id is defined else
                     (
-                      issue_data.fields.fixVersions | map(attribute='id') | list
+                      current_ids
                       + (
                           ([next_release_version_id]
                             if next_release_version_id is defined and (
-                              issue_data.fields.fixVersions
-                              | map(attribute='id')
-                              | map('extract', version_id_name_map)
-                              | select('search', '^\\d')
-                              | list | length == 0)
+                              current_names | select('search', '^\\d') | list | length == 0)
                             else [])
                         )
                     )
@@ -328,10 +315,12 @@
               )
             } ]
           }}
+      vars:
+        current_ids: "{{ issue_data.fields.fixVersions | map(attribute='id') | list }}"
+        current_names: "{{ current_ids | map('extract', version_id_name_map) | list }}"
       loop: "{{ issues_response.results | map(attribute='json') | list }}"
       loop_control:
         loop_var: issue_data
-
 
     - name: Какие fixVersion ID пойдут в задачу
       debug:
