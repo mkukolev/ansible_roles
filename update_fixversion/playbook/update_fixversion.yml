@@ -200,11 +200,15 @@
     - name: Определить список задач из коммитов
       set_fact:
         issue_keys: "{{ commits | map(attribute='properties.jira-key') | list | flatten | unique }}"
+      debug:
+        msg: "{{ issue_keys }}"
 
-    - meta: end_play
+    - name: Завершить выполнение - нет задач
+      meta: end_play
       when: issue_keys | length == 0
 
-    - meta: end_play
+    - name: Завершить выполнение - ветка feature или bugfix
+      meta: end_play
       when: branch_name is search("^(feature|bugfix)/")
 
     - name: Получить список всех версий проекта
@@ -219,26 +223,33 @@
         return_content: true
       register: versions_response
 
-    - set_fact:
+    - name: Сохранить все версии проекта
+      set_fact:
         all_versions: "{{ versions_response.json }}"
 
-    - set_fact:
+    - name: Извлечь имя релиза из названия ветки
+      set_fact:
         release_name: "{{ branch_name.split('/')[-1] }}"
       when: branch_name is search("^release/")
+      debug:
+        msg: "{{ release_name }}"
 
-    - set_fact:
+    - name: Найти ID версии релиза для обновления FixVersion
+      set_fact:
         release_version_id: >-
           {{ (all_versions | selectattr('name', 'equalto', release_name) | list)[0].id
-             if (all_versions | selectattr('name', 'equalto', release_name) | list) | length > 0 else omit }}
+            if (all_versions | selectattr('name', 'equalto', release_name) | list) | length > 0 else omit }}
       when: release_name is defined
 
-    - set_fact:
+    - name: Найти ID версии next-release
+      set_fact:
         next_release_version_id: >-
           {{ (all_versions | selectattr('name', 'equalto', next_release_name) | list)[0].id
-             if (all_versions | selectattr('name', 'equalto', next_release_name) | list) | length > 0 else omit }}
+            if (all_versions | selectattr('name', 'equalto', next_release_name) | list) | length > 0 else omit }}
       when: branch_name in ['devel', 'main', 'master']
 
-    - set_fact:
+    - name: Сформировать мапу версий ID → имя
+      set_fact:
         version_id_name_map: >-
           {{
             dict(
