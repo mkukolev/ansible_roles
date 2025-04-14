@@ -288,12 +288,7 @@
                   if release_version_id is defined else
                   (
                     current_ids
-                    + (
-                        ([next_release_version_id]
-                         if next_release_version_id is defined
-                         and (current_names | select('search', '^\\d') | list | length == 0)
-                         else [])
-                      )
+                    + ([next_release_version_id] if next_release_version_id is defined and not has_release else [])
                   )
                 ) | unique
               ),
@@ -311,12 +306,7 @@
                     if release_version_id is defined else
                     (
                       current_ids
-                      + (
-                          ([next_release_version_id]
-                           if next_release_version_id is defined
-                           and (current_names | select('search', '^\\d') | list | length == 0)
-                           else [])
-                        )
+                      + ([next_release_version_id] if next_release_version_id is defined and not has_release else [])
                     )
                   ) | unique | sort
                 )
