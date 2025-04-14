@@ -270,7 +270,13 @@
             issues_to_update | default([]) + [ {
               'issue': issue_data.key,
               'current_versions': current_ids,
-              'has_release': current_names | select('search', '^\\d') | list | length > 0,
+              'has_release': (
+                issue_data.fields.fixVersions
+                | map(attribute='name')
+                | select('search', '^\\d')
+                | list
+                | length > 0
+              ),
               'new_versions': (
                 (
                   (
