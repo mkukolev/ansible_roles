@@ -189,6 +189,10 @@
     - meta: end_play
       when: awx_webhook_payload.commits is not defined or awx_webhook_payload.commits | length == 0
 
+    - name: Получить данные из Webhook
+      debug:
+        msg: "{{ awx_webhook_payload }}"
+
     - name: Получить список всех коммитов из webhook
       set_fact:
         commits: "{{ awx_webhook_payload.commits | default([]) }}"
