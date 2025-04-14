@@ -200,7 +200,6 @@
     - name: Определить список задач из коммитов
       set_fact:
         issue_keys: "{{ commits | map(attribute='properties.jira-key') | list | flatten | unique }}"
-      debug:
         msg: "{{ issue_keys }}"
 
     - name: Завершить выполнение - нет задач
@@ -230,9 +229,8 @@
     - name: Извлечь имя релиза из названия ветки
       set_fact:
         release_name: "{{ branch_name.split('/')[-1] }}"
-      when: branch_name is search("^release/")
-      debug:
         msg: "{{ release_name }}"
+      when: branch_name is search("^release/")
 
     - name: Найти ID версии релиза для обновления FixVersion
       set_fact:
