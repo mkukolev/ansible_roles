@@ -263,7 +263,7 @@
             issues_to_update | default([]) + [ {
               'issue': issue_data.key,
               'current_versions': issue_data.fields.fixVersions | map(attribute='id') | list,
-              'has_release': issue_data.fields.fixVersions | selectattr('name', 'match', '^\\d') | list | length > 0,
+              'has_release': issue_data.fields.fixVersions | selectattr('name', 'search', '^\\d') | list | length > 0,
               'new_versions': (
                 (
                   (
@@ -276,7 +276,7 @@
                     + (
                         ([next_release_version_id]
                          if next_release_version_id is defined and
-                         issue_data.fields.fixVersions | selectattr('name', 'match', '^\\d') | list | length == 0
+                         (issue_data.fields.fixVersions | selectattr('name', 'search', '^\\d') | list | length == 0)
                          else [])
                       )
                   )
@@ -297,7 +297,7 @@
                       + (
                           ([next_release_version_id]
                            if next_release_version_id is defined and
-                           issue_data.fields.fixVersions | selectattr('name', 'match', '^\\d') | list | length == 0
+                           (issue_data.fields.fixVersions | selectattr('name', 'search', '^\\d') | list | length == 0)
                            else [])
                         )
                     )
