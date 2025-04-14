@@ -201,12 +201,10 @@
       set_fact:
         issue_keys: "{{ commits | map(attribute='properties.jira-key') | list | flatten | unique }}"
 
-    - name: Пропустить обновление, если задач нет
-      meta: end_play
+    - meta: end_play
       when: issue_keys | length == 0
 
-    - name: Пропустить обновление, если ветка фича/багфикс
-      meta: end_play
+    - meta: end_play
       when: branch_name is search("^(feature|bugfix)/")
 
     - name: Получить список всех версий проекта
@@ -221,42 +219,26 @@
         return_content: true
       register: versions_response
 
-    - name: Преобразовать список версий
-      set_fact:
+    - set_fact:
         all_versions: "{{ versions_response.json }}"
 
-    - name: Установить имя релиза (если релизная ветка)
-      set_fact:
+    - set_fact:
         release_name: "{{ branch_name.split('/')[-1] }}"
       when: branch_name is search("^release/")
 
-    - name: Найти ID версии релиза (если релизная ветка)
-      set_fact:
+    - set_fact:
         release_version_id: >-
           {{ (all_versions | selectattr('name', 'equalto', release_name) | list)[0].id
              if (all_versions | selectattr('name', 'equalto', release_name) | list) | length > 0 else omit }}
       when: release_name is defined
 
-    - name: Найти ID версии next-release (если основная ветка)
-      set_fact:
+    - set_fact:
         next_release_version_id: >-
           {{ (all_versions | selectattr('name', 'equalto', next_release_name) | list)[0].id
              if (all_versions | selectattr('name', 'equalto', next_release_name) | list) | length > 0 else omit }}
       when: branch_name in ['devel', 'main', 'master']
 
-    # Отладочные задачи для проверки версий
-    - name: Проверить наличие next_release_version_id
-      debug:
-        msg: "next_release_version_id = {{ next_release_version_id | default('не найден') }}"
-      when: branch_name in ['devel', 'main', 'master']
-
-    - name: Проверить наличие release_version_id
-      debug:
-        msg: "release_version_id = {{ release_version_id | default('не найден') }}"
-      when: release_name is defined
-
-    - name: Создать мапу версий ID → название
-      set_fact:
+    - set_fact:
         version_id_name_map: "{{ dict(all_versions | map(attribute='id') | zip(all_versions | map(attribute='name'))) }}"
 
     - name: Получить текущие fixVersion задач
@@ -281,6 +263,7 @@
             issues_to_update | default([]) + [ {
               'issue': issue_data.key,
               'current_versions': issue_data.fields.fixVersions | map(attribute='id') | list,
+              'has_release': issue_data.fields.fixVersions | selectattr('name', 'match', '^\\d') | list | length > 0,
               'new_versions': (
                 (
                   (
@@ -290,7 +273,12 @@
                   if release_version_id is defined else
                   (
                     issue_data.fields.fixVersions | map(attribute='id') | list
-                    + ([next_release_version_id] if next_release_version_id is defined else [])
+                    + (
+                        ([next_release_version_id]
+                         if next_release_version_id is defined and
+                         issue_data.fields.fixVersions | selectattr('name', 'match', '^\\d') | list | length == 0
+                         else [])
+                      )
                   )
                 ) | unique
               ),
@@ -306,7 +294,12 @@
                     if release_version_id is defined else
                     (
                       issue_data.fields.fixVersions | map(attribute='id') | list
-                      + ([next_release_version_id] if next_release_version_id is defined else [])
+                      + (
+                          ([next_release_version_id]
+                           if next_release_version_id is defined and
+                           issue_data.fields.fixVersions | selectattr('name', 'match', '^\\d') | list | length == 0
+                           else [])
+                        )
                     )
                   ) | unique | sort
                 )
@@ -325,7 +318,6 @@
           Новые: {{ item.new_versions | map('extract', version_id_name_map) | list }},
           Обновление требуется: {{ item.update_required }}
       loop: "{{ issues_to_update }}"
-      when: true  # Всегда показывать для отладки
 
     - name: Обновить задачи Jira с нужными версиями
       uri:
