@@ -283,6 +283,7 @@
                   )
                 ) | unique
               ),
+              # Исправлено: new_versions берется из текущего объекта, а не из переменной
               'update_required': (issue_data.fields.fixVersions | map(attribute='id') | list | sort != new_versions | sort)
             } ]
           }}
