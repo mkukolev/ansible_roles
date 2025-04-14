@@ -340,6 +340,7 @@
         body:
           fields:
             fixVersions: "{{ item.new_versions | map('regex_replace', '^(.*)$', '{\"id\": \"\\1\"}') | map('from_json') | list }}"
+          status_code: [200, 204]
       loop: "{{ issues_to_update }}"
       when: item.update_required
       loop_control:
